@@ -1,56 +1,37 @@
-﻿using System;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading.Tasks;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Producer;
+using Services;
 
-// URLs לבחירה:
-// var url = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json";
-// var url = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.json";
-var url = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/vehicle_types.json";
+var builder = Host.CreateApplicationBuilder(args);
 
-// 1. יצירת אובייקט ה-HttpClient שבאמצעותו מנהלים את התקשורת
-using var client = new HttpClient();
+builder.Services.AddSingleton(sp => new KafkaProducer("localhost:9092"));
 
-Console.WriteLine($"Sending GET request to: {url}\n");
+builder.Services.AddHttpClient<IStationStatusService, StationStatusService>();
+builder.Services.AddHttpClient<IStationInformationService, StationInformationService>();
+builder.Services.AddHttpClient<IVehiclesService, VehicleTypesService>();
 
-try
+using var host = builder.Build();
+
+var statusService = host.Services.GetRequiredService<IStationStatusService>();
+var infoService = host.Services.GetRequiredService<IStationInformationService>();
+var vehiclesService = host.Services.GetRequiredService<IVehiclesService>();
+
+var statusTask = RunPeriodicAsync(TimeSpan.FromMinutes(1),
+    () => statusService.FetchAndPublishAsync("https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json"));
+var infoTask = RunPeriodicAsync(TimeSpan.FromMinutes(60),
+    () => infoService.FetchAndPublishAsync("https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.json"));
+var vehiclesTask = RunPeriodicAsync(TimeSpan.FromMinutes(60),
+    () => vehiclesService.FetchAndPublishAsync("https://gbfs.lyft.com/gbfs/2.3/bkn/en/vehicle_types.json"));
+
+await Task.WhenAll(statusTask, infoTask, vehiclesTask);
+
+static async Task RunPeriodicAsync(TimeSpan interval,Func<Task> action)
 {
-    // 2. שליחת בקשת HTTP GET לקבלת תשובת השרת
-    HttpResponseMessage response = await client.GetAsync(url);
-
-    // 3. בדיקה אם הבקשה הצליחה (קוד תשובה בטווח 200-299)
-    if (response.IsSuccessStatusCode)
+    using var timer = new PeriodicTimer(interval);
+    await action();
+    while (await timer.WaitForNextTickAsync())
     {
-        Console.WriteLine($"[STATUS] {response.StatusCode} OK\n");
-
-        // 4. חילוץ התוכן (Body) של התשובה כמחרוזת JSON
-        string jsonContent = await response.Content.ReadAsStringAsync();
-
-        // הדפסת 300 התווים הראשונים בלבד כדי לא להציף את המסך
-        Console.WriteLine("--- Preview of JSON Response ---");
-        Console.WriteLine(jsonContent.Substring(0, Math.Min(300, jsonContent.Length)) + "...\n");
-
-        // 5. פירסור דינמי ללא DTO - קריאת שדות מתוך ה-JSON
-        using JsonDocument doc = JsonDocument.Parse(jsonContent);
-        JsonElement root = doc.RootElement;
-
-        if (root.TryGetProperty("last_updated", out JsonElement lastUpdated))
-        {
-            Console.WriteLine($"[PARSED DATA] Last Updated: {lastUpdated.GetInt64()}");
-        }
-
-        if (root.TryGetProperty("data", out JsonElement data) && data.TryGetProperty("stations", out JsonElement stations))
-        {
-            Console.WriteLine($"[PARSED DATA] Total stations received: {stations.GetArrayLength()}");
-        }
+        await action();
     }
-    else
-    {
-        Console.WriteLine($"[ERROR] Request failed with Status Code: {response.StatusCode}");
-    }
-}
-catch (HttpRequestException ex)
-{
-    // טיפול בשגיאות תקשורת (למשל: אין חיבור לאינטרנט או ה-URL שגוי)
-    Console.WriteLine($"[NETWORK ERROR] {ex.Message}");
 }

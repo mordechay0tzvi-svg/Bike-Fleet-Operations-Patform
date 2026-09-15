@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+COPY ["IngestionApp/IngestionApp.csproj", "IngestionApp/"]
+COPY ["Services/Services.csproj", "Services/"]
+COPY ["Producer/Producer.csproj", "Producer/"]
+COPY ["Dto/Dto.csproj", "Dto/"]
+
+RUN dotnet restore "IngestionApp/IngestionApp.csproj"
+
+COPY . .
+
+WORKDIR "/src/IngestionApp"
+RUN dotnet publish "IngestionApp.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/runtime:8.0 AS final
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+ENTRYPOINT ["dotnet", "IngestionApp.dll"]

@@ -1,11 +1,27 @@
 using System.Text.Json.Serialization;
 namespace Dto;
-public record GbfsInformationResponse([property: JsonPropertyName("data")] GbfsInformationData Data);
-public record GbfsInformationData([property: JsonPropertyName("stations")] List<StationInformationDto> Stations);
-public record StationInformationDto(
-    [property: JsonPropertyName("station_id")] string StationId,
-    [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("lat")] double Lat,
-    [property: JsonPropertyName("lon")] double Lon,
-    [property: JsonPropertyName("capacity")] int Capacity
-);
+public class GbfsInformationResponse
+{
+    public GbfsInformationData Data { get; set; } = null!;
+}
+public class GbfsInformationData
+{
+    public List<StationInformationDto> Stations { get; set; } = [];
+}
+public class StationInformationDto
+{
+    [JsonPropertyName("station_id")]
+    public string StationId { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("lat")]
+    public double Lat { get; set; }
+
+    [JsonPropertyName("lon")]
+    public double Lon { get; set; }
+
+    [JsonPropertyName("capacity")]
+    public int Capacity { get; set; }
+}
