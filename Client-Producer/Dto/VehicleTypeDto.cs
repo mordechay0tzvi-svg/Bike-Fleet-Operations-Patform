@@ -6,6 +6,7 @@ public class GbfsVehicleTypeResponse
 }
 public class GbfsVehicleTypeData
 {
+    [JsonPropertyName("vehicle_types")]
     public List<VehicleTypeDto> VehicleTypes { get; set; } = [];
 }
 public class VehicleTypeDto

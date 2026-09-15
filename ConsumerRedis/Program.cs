@@ -5,40 +5,62 @@ using Redis;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-var connectionString ="Server=localhost;Port=3306;Database=bikeStationDb;User=root;Password=secret;";
+var connectionString = "Server=localhost;Port=3306;Database=bikeStationDb;User=root;Password=secret;";
 
-builder.Services.AddDbContext<DbAppContext>(options =>options.UseMySql(connectionString,ServerVersion.AutoDetect(connectionString)));
+builder.Services.AddDbContext<DbAppContext>(options => options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-builder.Services.AddSingleton<RedisService>(sp =>new RedisService("localhost:6379"));
+builder.Services.AddSingleton<RedisService>(sp => new RedisService("localhost:6379"));
 
 builder.Services.AddSingleton<MongoDbService>(sp => new MongoDbService("mongodb://localhost:27017"));
 
-builder.Services.AddSingleton<KafkaConsumer>(sp => new KafkaConsumer("localhost:9092"));
+builder.Services.AddScoped<IStatusHandler>(sp => new StatusHandler(
+    new KafkaConsumer("localhost:9092", "statusId"),
+    sp.GetRequiredService<DbAppContext>(),
+    sp.GetRequiredService<RedisService>(),
+    sp.GetRequiredService<ILogger<StatusHandler>>()));
 
-builder.Services.AddSingleton<IInformationHandler, InformationHandler>();
-builder.Services.AddSingleton<IStatusHandler, StatusHandler>();
-builder.Services.AddSingleton<IVehicleTypeHandler, VehicleTypeHandler>();
+builder.Services.AddScoped<IInformationHandler>(sp => new InformationHandler(
+    new KafkaConsumer("localhost:9092", "informationId"),
+    sp.GetRequiredService<DbAppContext>(),
+    sp.GetRequiredService<ILogger<InformationHandler>>()));
+
+builder.Services.AddScoped<IVehicleTypeHandler>(sp => new VehicleTypeHandler(
+    new KafkaConsumer("localhost:9092", "vehicleTypeId"),
+    sp.GetRequiredService<MongoDbService>(),
+    sp.GetRequiredService<ILogger<VehicleTypeHandler>>()));
 
 var host = builder.Build();
 
-using (var scope = host.Services.CreateScope())
+using (var creatingScope = host.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<DbAppContext>();
+    var context = creatingScope.ServiceProvider.GetRequiredService<DbAppContext>();
+    var redis = creatingScope.ServiceProvider.GetRequiredService<RedisService>();
+    await redis.ClearAsync();
     context.Database.EnsureDeleted();
     await context.Database.EnsureCreatedAsync();
-    var mongo = scope.ServiceProvider.GetRequiredService<MongoDbService>();
-    mongo.VehicleTypes.Database.CreateCollection("bikeStationDb");
 }
 
-var informationHandler = host.Services.GetRequiredService<IInformationHandler>();
-var statusHandler = host.Services.GetRequiredService<IStatusHandler>();
-var vehicleTypeHandler = host.Services.GetRequiredService<IVehicleTypeHandler>();
-
 await Task.WhenAll(
-    informationHandler.HandleAsync("bike.station-information"),
-    statusHandler.HandleAsync("bike.station-status"),
-    vehicleTypeHandler.HandleAsync("bike.vehicle-types")
+    Task.Run(async () =>
+    {
+        using var scope = host.Services.CreateScope();
+        var statusHandler = scope.ServiceProvider.GetRequiredService<IStatusHandler>();
+        await statusHandler.HandleAsync("bike.station-status");
+    }),
+    Task.Run(async () =>
+    {
+        using var scope = host.Services.CreateScope();
+        var informationHandler = scope.ServiceProvider.GetRequiredService<IInformationHandler>();
+        await informationHandler.HandleAsync("bike.station-information");
+    }), 
+    Task.Run(async () =>
+    {
+        using var scope = host.Services.CreateScope();
+        var vehicleTypeHandler = scope.ServiceProvider.GetRequiredService<IVehicleTypeHandler>();
+        await vehicleTypeHandler.HandleAsync("bike.vehicle-types");
+    })
 );

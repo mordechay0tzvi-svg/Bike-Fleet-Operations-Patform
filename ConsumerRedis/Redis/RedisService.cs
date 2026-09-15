@@ -24,5 +24,18 @@ public class RedisService
         }
         return JsonSerializer.Deserialize<T>(json!);
     }
+    public async Task ClearAsync()
+    {
+        var endpoints = _redis.GetEndPoints();
+        foreach (var endpoint in endpoints)
+        {
+            var server = _redis.GetServer(endpoint);
+            var keys = server.Keys(database: _database.Database,pattern: "station-status:*");
+            foreach (var key in keys)
+            {
+                await _database.KeyDeleteAsync(key);
+            }
+        }
+    }
 }
 
