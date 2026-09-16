@@ -11,13 +11,13 @@ public interface IVehicleTypeHandler
 public class VehicleTypeHandler : IVehicleTypeHandler
 {
     private readonly KafkaConsumer _consumer;
-    private readonly MongoDbService _mongo;
     private readonly ILogger<VehicleTypeHandler> _logger;
+    private readonly DbAppContext _context;
 
-    public VehicleTypeHandler(KafkaConsumer consumer,MongoDbService mongo,ILogger<VehicleTypeHandler> logger)
+    public VehicleTypeHandler(KafkaConsumer consumer, DbAppContext context,ILogger<VehicleTypeHandler> logger)
     {
         _consumer = consumer;
-        _mongo = mongo;
+        _context = context;
         _logger = logger;
     }
 
@@ -32,12 +32,9 @@ public class VehicleTypeHandler : IVehicleTypeHandler
                 _logger.LogWarning("Couldn't consume vehicle type");
                 continue;
             }
-            var filter = Builders<VehicleType>.Filter.Eq(x => x.VehicleTypeId, vehicleType.VehicleTypeId);
-            var options = new ReplaceOptions
-            {
-                IsUpsert = true
-            };
-            await _mongo.VehicleTypes.ReplaceOneAsync(filter,vehicleType,options);
+             await _context.VehicleTypes.AddAsync(vehicleType);
+             await _context.SaveChangesAsync();
         }
     }
 }
+

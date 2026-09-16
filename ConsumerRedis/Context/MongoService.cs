@@ -9,5 +9,5 @@ public class MongoDbService
         var client = new MongoClient(ConnectionString);
         _database = client.GetDatabase("bikeStationDb");
     }
-    public IMongoCollection<VehicleType> VehicleTypes => _database.GetCollection<VehicleType>("vehicleTypes");
+    public IMongoCollection<StationStatus> StationStatus => _database.GetCollection<StationStatus>("stationStatus");
 }

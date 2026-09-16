@@ -1,7 +1,7 @@
-﻿using Consumer;
+﻿using Redis;
+using Consumer;
 using DataBase;
 using Handlers;
-using Redis;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +19,7 @@ builder.Services.AddSingleton<MongoDbService>(sp => new MongoDbService("mongodb:
 
 builder.Services.AddScoped<IStatusHandler>(sp => new StatusHandler(
     new KafkaConsumer("localhost:9092", "statusId"),
-    sp.GetRequiredService<DbAppContext>(),
+    sp.GetRequiredService<MongoDbService>(),
     sp.GetRequiredService<RedisService>(),
     sp.GetRequiredService<ILogger<StatusHandler>>()));
 
@@ -30,7 +30,7 @@ builder.Services.AddScoped<IInformationHandler>(sp => new InformationHandler(
 
 builder.Services.AddScoped<IVehicleTypeHandler>(sp => new VehicleTypeHandler(
     new KafkaConsumer("localhost:9092", "vehicleTypeId"),
-    sp.GetRequiredService<MongoDbService>(),
+    sp.GetRequiredService<DbAppContext>(),
     sp.GetRequiredService<ILogger<VehicleTypeHandler>>()));
 
 var host = builder.Build();
@@ -44,23 +44,14 @@ using (var creatingScope = host.Services.CreateScope())
     await context.Database.EnsureCreatedAsync();
 }
 
+using var scope = host.Services.CreateScope();
+
+var statusHandler = scope.ServiceProvider.GetRequiredService<IStatusHandler>();
+var informationHandler = scope.ServiceProvider.GetRequiredService<IInformationHandler>();
+var vehicleTypeHandler = scope.ServiceProvider.GetRequiredService<IVehicleTypeHandler>();
+
 await Task.WhenAll(
-    Task.Run(async () =>
-    {
-        using var scope = host.Services.CreateScope();
-        var statusHandler = scope.ServiceProvider.GetRequiredService<IStatusHandler>();
-        await statusHandler.HandleAsync("bike.station-status");
-    }),
-    Task.Run(async () =>
-    {
-        using var scope = host.Services.CreateScope();
-        var informationHandler = scope.ServiceProvider.GetRequiredService<IInformationHandler>();
-        await informationHandler.HandleAsync("bike.station-information");
-    }), 
-    Task.Run(async () =>
-    {
-        using var scope = host.Services.CreateScope();
-        var vehicleTypeHandler = scope.ServiceProvider.GetRequiredService<IVehicleTypeHandler>();
-        await vehicleTypeHandler.HandleAsync("bike.vehicle-types");
-    })
+    Task.Run(async () =>{await statusHandler.HandleAsync("bike.station-status");}),
+    Task.Run(async () =>{await informationHandler.HandleAsync("bike.station-information");}), 
+    Task.Run(async () => {await vehicleTypeHandler.HandleAsync("bike.vehicle-types");})
 );

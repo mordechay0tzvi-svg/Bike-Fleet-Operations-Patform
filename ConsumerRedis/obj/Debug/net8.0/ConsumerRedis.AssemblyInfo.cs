@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConsumerRedis")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4d37afbddf50dade32a0ccdb8fad7e89f49819c6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+22901080a76fdc49ca288b4766313a5752bb76c7")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConsumerRedis")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConsumerRedis")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

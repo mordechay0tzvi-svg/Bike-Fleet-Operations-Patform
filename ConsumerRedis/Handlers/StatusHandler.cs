@@ -3,6 +3,7 @@ using Consumer;
 using Redis;
 using DataBase;
 using Microsoft.Extensions.Logging;
+using MongoDB.Driver;
 namespace Handlers;
 public interface IStatusHandler
 {
@@ -11,13 +12,13 @@ public interface IStatusHandler
 public class StatusHandler : IStatusHandler
 {
     private readonly KafkaConsumer _consumer;
-    private readonly DbAppContext _context;
+    private readonly MongoDbService _mongo;
     private readonly RedisService _redis;
     private readonly ILogger<StatusHandler> _logger;
-    public StatusHandler(KafkaConsumer consumer, DbAppContext context,RedisService redis, ILogger<StatusHandler> logger)
+    public StatusHandler(KafkaConsumer consumer,MongoDbService mongo, RedisService redis, ILogger<StatusHandler> logger)
     {
         _consumer = consumer;
-        _context = context;
+        _mongo = mongo;
         _redis = redis;
         _logger = logger;
     }
@@ -39,16 +40,15 @@ public class StatusHandler : IStatusHandler
                 _logger.LogInformation("No change for station {StationId}",status.StationId);
                 continue;
             }
-            var found = await _context.StationStatus.FindAsync(status.StationId);
+            var found = await _mongo.StationStatus.Find(s => s.StationId == status.StationId).FirstOrDefaultAsync();
             if (found != null)
             {
-                _context.Entry(found).CurrentValues.SetValues(status);
+                await _mongo.StationStatus.ReplaceOneAsync(s => s.StationId == status.StationId,status);
             }
             else
             {
-                await _context.StationStatus.AddAsync(status);
+                await _mongo.StationStatus.InsertOneAsync(status);
             }
-            await _context.SaveChangesAsync();
             await _redis.SetAsync(key, status);
         }
     }
