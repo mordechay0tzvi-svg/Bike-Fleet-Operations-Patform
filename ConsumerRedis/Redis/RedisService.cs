@@ -12,24 +12,24 @@ public class RedisService
     }
     public async Task SetAsync<T>(string key, T value)
     {
-        var json = JsonSerializer.Serialize(value);
-        await _database.StringSetAsync(key, json);
+        var set = JsonSerializer.Serialize(value);
+        await _database.StringSetAsync(key, set);
     }
     public async Task<T?> GetAsync<T>(string key)
     {
-        var json = await _database.StringGetAsync(key);
-        if (json.IsNullOrEmpty)
+        var get = await _database.StringGetAsync(key);
+        if (get.IsNullOrEmpty)
         {
             return default;
         }
-        return JsonSerializer.Deserialize<T>(json!);
+        return JsonSerializer.Deserialize<T>(get!);
     }
     public async Task ClearAsync()
     {
         var endpoints = _redis.GetEndPoints();
-        foreach (var endpoint in endpoints)
+        foreach (var e in endpoints)
         {
-            var server = _redis.GetServer(endpoint);
+            var server = _redis.GetServer(e);
             var keys = server.Keys(database: _database.Database,pattern: "station-status:*");
             foreach (var key in keys)
             {

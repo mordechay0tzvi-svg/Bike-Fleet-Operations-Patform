@@ -40,6 +40,12 @@ public class StatusHandler : IStatusHandler
                 _logger.LogInformation("No change for station {StationId}",status.StationId);
                 continue;
             }
+            var information = await _redis.GetAsync<StationInformation>($"station-information:{status.StationId}");
+            if (information == null)
+            {
+                _logger.LogWarning("Received status for unknown station {StationId}. Status was ignored.",status.StationId);
+                continue;
+            }
             var found = await _mongo.StationStatus.Find(s => s.StationId == status.StationId).FirstOrDefaultAsync();
             if (found != null)
             {

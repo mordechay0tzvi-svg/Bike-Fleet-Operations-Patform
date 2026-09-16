@@ -2,7 +2,13 @@ using System.Security.AccessControl;
 using System.Text.Json;
 using Confluent.Kafka;
 namespace Consumer;
-public class KafkaConsumer
+public interface IKafkaConsumer
+{
+    void Subscribe(string topic);
+    T? Consume<T>();
+    void Commit();
+}
+public class KafkaConsumer : IKafkaConsumer
 {
     private readonly IConsumer<string, string> _consumer;
    public KafkaConsumer(string bootstrapserver, string groupId)

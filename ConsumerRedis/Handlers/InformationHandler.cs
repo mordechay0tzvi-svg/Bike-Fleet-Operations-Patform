@@ -1,6 +1,7 @@
 using Models;
 using Consumer;
 using DataBase;
+using Redis;
 using Microsoft.Extensions.Logging;
 namespace Handlers;
 public interface IInformationHandler
@@ -11,9 +12,11 @@ public class InformationHandler : IInformationHandler
 {
     private readonly KafkaConsumer _consumer;
     private readonly DbAppContext _context;
+    private readonly RedisService _redis;
     private readonly ILogger<InformationHandler> _logger;
-    public InformationHandler(KafkaConsumer consumer, DbAppContext context, ILogger<InformationHandler> logger)
+    public InformationHandler(KafkaConsumer consumer, DbAppContext context, RedisService redis, ILogger<InformationHandler> logger)
     {
+        _redis = redis;
         _consumer = consumer;
         _context = context;
         _logger = logger;
@@ -37,6 +40,7 @@ public class InformationHandler : IInformationHandler
             else
             {
                 await _context.StationInformation.AddAsync(information);
+                await _redis.SetAsync( $"station-information{information.StationId}", information);
             }
             await _context.SaveChangesAsync();
         }
